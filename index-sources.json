@@ -5,7 +5,9 @@
     "Unlicense"
   ],
   "users": [],
-  "repos": [],
+  "repos": [
+    "plugin-localizer/demo-plugins"
+  ],
   "repoDirs": [
     "GaryCXJk-rmmz-plugins",
     "Jim00000-RMMZ-Plugin-Collection",
