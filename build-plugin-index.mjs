@@ -55,12 +55,25 @@ export function detectTarget(meta, src) {
   if (t.includes('MZ')) return 'MZ';
   if (t.includes('MV')) return 'MV';
   if (/PluginManager\.registerCommand/.test(src || '')) return 'MZ';
-  return 'MZ';
+  // No @target and no MZ-only API: MZ plugins almost always declare @target,
+  // so treat the remainder as MV (MV-era plugins omit @target).
+  return 'MV';
 }
 
 export function deriveTags(text) {
   const hay = (text || '').toLowerCase();
   return TAG_KEYWORDS.filter(t => hay.includes(t));
+}
+
+// Detect an MIT/Unlicense declaration in the plugin's own header. Many authors
+// state the license in the file even when the repository has no LICENSE file
+// (common for Japanese plugin authors). Returns 'MIT' / 'Unlicense' / null.
+export function detectLicenseFromSource(src) {
+  if (!src) return null;
+  const head = src.slice(0, 8000);
+  if (/Unlicense|public\s+domain/i.test(head)) return 'Unlicense';
+  if (/MIT\s+Licen[sc]e|MITライセンス|releas\w*\s+under\s+(the\s+)?MIT|under\s+the\s+MIT|@licen[sc]e\s+MIT|licen[sc]e[:：]?\s*MIT|ライセンス[:：]?\s*MIT/i.test(head)) return 'MIT';
+  return null;
 }
 
 export function pluginSourceToEntry(src, { owner, repo, relativePath, license }) {
@@ -143,15 +156,19 @@ async function main() {
     const repoDir = `${owner}-${repo}`;
     try {
       const info = await ghJson(`${API}/repos/${owner}/${repo}`);
-      const spdx = (info && info.license && info.license.spdx_id) || '';
-      if (!allowed.has(spdx)) { console.log(`[license] ${repoDir}: ${spdx || 'none'} skipped`); continue; }
+      const repoSpdx = (info && info.license && info.license.spdx_id) || '';
       const branch = info.default_branch || 'main';
       const files = await listJsFiles(owner, repo, branch);
       let kept = 0;
       for (const p of files) {
         try {
           const src = await ghRaw(owner, repo, branch, p);
-          const entry = pluginSourceToEntry(src, { owner, repo, relativePath: p, license: spdx });
+          // Trust the repo SPDX when it is MIT/Unlicense; otherwise fall back
+          // to a license declared in the plugin's own header (so repos without
+          // a LICENSE file but with MIT-licensed plugins are still included).
+          const license = allowed.has(repoSpdx) ? repoSpdx : detectLicenseFromSource(src);
+          if (!license || !allowed.has(license)) continue;
+          const entry = pluginSourceToEntry(src, { owner, repo, relativePath: p, license });
           if (entry) { result.push(entry); kept++; }
         } catch (_) { /* skip file */ }
       }
