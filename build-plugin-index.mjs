@@ -93,7 +93,7 @@ export function detectLicenseFromSource(src) {
   return null;
 }
 
-export function pluginSourceToEntry(src, { owner, repo, relativePath, license }) {
+export function pluginSourceToEntry(src, { owner, repo, relativePath, license, branch }) {
   if (hasOptOutMarker(src)) return null;
   const meta = extractMeta(src);
   if (!meta) return null;
@@ -107,7 +107,24 @@ export function pluginSourceToEntry(src, { owner, repo, relativePath, license })
     target: detectTarget(meta, src),
     tags: deriveTags(`${relativePath} ${meta.plugindesc} ${meta.help}`),
     license,
+    // Only present for branch-pinned scans ("owner/repo#branch" sources):
+    // marks that the file lives on a non-default branch.
+    ...(branch ? { branch } : {}),
   };
+}
+
+// A branch-pinned scan can revisit files that also exist on the default
+// branch. Keep the default-branch entry in that case: the app downloads via
+// HEAD (= the default branch) first, so that is the version users actually
+// receive; a pinned-branch duplicate would silently resolve to the wrong file.
+export function dedupeEntriesPreferDefault(entries) {
+  const byFile = new Map();
+  for (const e of entries) {
+    const k = `${e.repoDir} ${e.relativePath}`;
+    const prev = byFile.get(k);
+    if (!prev || (prev.branch && !e.branch)) byFile.set(k, e);
+  }
+  return [...byFile.values()];
 }
 
 function ghHeaders() {
@@ -131,9 +148,20 @@ async function ghRaw(owner, repo, branch, p) {
   if (!r.ok) throw new Error(`raw ${r.status} ${p}`);
   return r.text();
 }
-async function resolveRepo(spec) {
-  if (spec.includes('/')) { const [owner, repo] = spec.split('/'); return { owner, repo }; }
-  for (const [owner, repo] of splitRepoDir(spec)) {
+// "owner/repo" or "owner/repo#branch" (the latter pins the scan to a branch
+// other than the default — for repos that publish plugins on a side branch,
+// e.g. triacontane's master = the MV line next to the mz_master default).
+// NOTE: the app's downloader currently tries HEAD/master/main only, so pin
+// only branches it can reach; e.g. a "release" branch needs app support first.
+export async function resolveRepo(spec) {
+  const hash = spec.indexOf('#');
+  const repoSpec = hash < 0 ? spec : spec.slice(0, hash);
+  const branch = hash < 0 ? '' : spec.slice(hash + 1);
+  if (repoSpec.includes('/')) {
+    const [owner, repo] = repoSpec.split('/');
+    return branch ? { owner, repo, branch } : { owner, repo };
+  }
+  for (const [owner, repo] of splitRepoDir(repoSpec)) {
     const info = await ghJson(`${API}/repos/${owner}/${repo}`);
     if (info && info.full_name) return { owner, repo };
   }
@@ -208,7 +236,7 @@ async function discoverReposFromCode(queries, perQueryPages = 3) {
 function dedupeRepos(repos) {
   const seen = new Set();
   return repos.filter(r => {
-    const k = `${r.owner}/${r.repo}`.toLowerCase();
+    const k = `${r.owner}/${r.repo}#${r.branch || ''}`.toLowerCase();
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
@@ -246,12 +274,13 @@ async function main() {
   const uniqueRepos = dedupeRepos(repos);
 
   const result = [];
-  for (const { owner, repo, origin } of uniqueRepos) {
+  for (const { owner, repo, origin, branch: pinnedBranch } of uniqueRepos) {
     const repoDir = `${owner}-${repo}`;
+    const label = pinnedBranch ? `${repoDir}#${pinnedBranch}` : repoDir;
     try {
       const info = await ghJson(`${API}/repos/${owner}/${repo}`);
       const repoSpdx = (info && info.license && info.license.spdx_id) || '';
-      const branch = info.default_branch || 'main';
+      const branch = pinnedBranch || info.default_branch || 'main';
       const files = await listJsFiles(owner, repo, branch);
       if (origin !== 'seed' && isGameProjectTree(files)) {
         console.log(`[game] ${repoDir}: deployed game project — skipped`);
@@ -266,20 +295,21 @@ async function main() {
           // a LICENSE file but with MIT-licensed plugins are still included).
           const license = allowed.has(repoSpdx) ? repoSpdx : detectLicenseFromSource(src);
           if (!license || !allowed.has(license)) continue;
-          const entry = pluginSourceToEntry(src, { owner, repo, relativePath: p, license });
+          const entry = pluginSourceToEntry(src, { owner, repo, relativePath: p, license, branch: pinnedBranch });
           if (entry) { result.push(entry); kept++; }
         } catch (_) { /* skip file */ }
       }
-      console.log(`[ok] ${repoDir}: ${kept} plugin(s)`);
+      console.log(`[ok] ${label}: ${kept} plugin(s)`);
     } catch (e) {
       const fb = byRepoDir[repoDir] || [];
       result.push(...fb);
-      console.warn(`[keep] ${repoDir}: ${e.message}; kept ${fb.length}`);
+      console.warn(`[keep] ${label}: ${e.message}; kept ${fb.length}`);
     }
   }
-  result.sort((a, b) => a.repoDir.localeCompare(b.repoDir) || a.relativePath.localeCompare(b.relativePath));
-  console.log(`Total: ${result.length} entries`);
-  fs.writeFileSync(OUT, JSON.stringify(result, null, 0) + '\n');
+  const entries = dedupeEntriesPreferDefault(result);
+  entries.sort((a, b) => a.repoDir.localeCompare(b.repoDir) || a.relativePath.localeCompare(b.relativePath));
+  console.log(`Total: ${entries.length} entries`);
+  fs.writeFileSync(OUT, JSON.stringify(entries, null, 0) + '\n');
   console.log(`Wrote ${OUT}`);
 }
 
