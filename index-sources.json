@@ -1,12 +1,57 @@
 {
-  "_comment": "Sources for scripts/build-plugin-index.mjs. Add GitHub repos as 'owner/repo' under \"repos\", or whole users/orgs under \"users\" (every public repo is scanned). \"repoDirs\" is seeded from the existing catalog (repoDir = owner-repo joined by '-'; the script resolves the split via the GitHub API). Only MIT/Unlicense repos are included; plugins containing @no-localize are skipped.",
+  "_comment": "Sources for build-plugin-index.mjs. Add GitHub repos as 'owner/repo' under \"repos\", or whole users/orgs under \"users\" (every public repo is scanned). \"repoDirs\" is legacy 'owner-repo' format. A plugin is included only with an explicit MIT grant: the repo's SPDX license, or an MIT declaration in the plugin header. Plugins containing @no-localize are skipped.",
   "allowedLicenses": [
-    "MIT",
-    "Unlicense"
+    "MIT"
   ],
-  "users": [],
+  "searchQueries": [
+    "RPGツクールMZ プラグイン",
+    "RPGツクールMV プラグイン",
+    "rpg maker mz plugin",
+    "rpg maker mv plugin",
+    "topic:rpg-maker-mz",
+    "topic:rpg-maker-mv",
+    "topic:rpgmakermz",
+    "topic:rpgmakermv"
+  ],
+  "users": [
+    "doujinreviewers",
+    "t-akatsuki"
+  ],
   "repos": [
-    "plugin-finder/demo-plugins"
+    "akimana/RPGMAKER_MZ_Plugins",
+    "asakayu/Mihil_RPGMakerMZ_plugins",
+    "basuka/RPGMZ",
+    "cji3bp62000/RPGMaker-plugins",
+    "cursed-steven/rmmz",
+    "effekseer/EffekseerForRPGMakerMZ_Ex",
+    "elleonard/DarkPlasma-MZ-Plugins",
+    "folt-a/rmmz-evcocco",
+    "gere-gere/RPGMakerMZ_plugins",
+    "hichi-gamebuild/RPGMakerMZ",
+    "Hirorin495/MZPlugins",
+    "kenzakis2/RMPMZ_kenzaki",
+    "kotonoha0109/kotonoha_tkoolMZ_Plugins",
+    "lriki/LN_FilmicFilter",
+    "lriki/LN_MysteryRogueSystem",
+    "mankindGames/RPGTkoolMZ",
+    "mattuup/RPGMakerMZ",
+    "munokura/ARTM-MZ-plugins",
+    "neofuji/RPGMZ-Plugins",
+    "nulluo/GEMINI-RPG-Maker-Plugin",
+    "nuun888/MZ",
+    "pepaperon-p/LN_FilmicFilter_Mod",
+    "plugin-finder/demo-plugins",
+    "pota-gon/RPGMakerMZ",
+    "QBE256/RPGMakerMZPlugin",
+    "rinne-grid/tkoolmz_plugin_RecollectionModeMZ",
+    "Sakurano6130/SakuraPlugins",
+    "sevenspice/FlashLight",
+    "sevenspice/ItemSlot",
+    "Sigureya/RPGmakerMZ",
+    "t-kendama/RPGMakerMZ",
+    "tonbijp/RPGMakerMZ",
+    "tonbijp/RPGMakerMV",
+    "utsudashinou/RPGMakerMV"
   ],
   "repoDirs": [
     "GaryCXJk-rmmz-plugins",
@@ -25,8 +70,6 @@
     "suibotsukuiki-RPGMakerMZ",
     "triacontane-RPGMakerMV",
     "unagiootoro-RPGMZ",
-    "tonbijp/RPGMakerMZ",
-    "tonbijp/RPGMakerMV",
     "white-mns-RPGMakerMZPlugin"
   ]
 }
